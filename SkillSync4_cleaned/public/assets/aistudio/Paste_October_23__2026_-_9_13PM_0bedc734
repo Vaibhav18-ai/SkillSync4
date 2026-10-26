@@ -1,0 +1,565 @@
+The SkillSync project has been rewritten from Dynamic/FastAPI/HTML into a React (Vite + TypeScript) application while preserving all core features, algorithmic balancing models, and business logic.
+Ported Features
+Authentication & User Switching:
+Secure login and registration with sample credentials (coordinator@skillsync.test, student1@skillsync.test, password Demo@1234).
+Interactive demo role/account switcher in the header to navigate between coordinator and student experiences.
+Scoring & Evaluation Algorithm:
+Exact implementation of skillScore, generalScore, competitionFit, and leadershipScore.
+Comprehensive team balancer implementing multi-objective greedy allocation and iterative swap search across tolerance constraints, leadership allocation, and partner preferences (prefer / avoid).
+Coordinator Dashboard:
+Competition creation with customizable track types and weighted skill requirements.
+Lifecycle management: draft publishing, registration closing, and applicant auditing.
+Team generation with candidate option tabs, fairness tolerance checks, and team averages bar charts.
+Team finalization and Monte Carlo fairness simulation report benchmarked against 300 random trials.
+CSV export of finalized team rosters and member scores.
+Student Dashboard:
+General score display and top skills progress bars.
+Chart.js radar chart visualization for skill strength distribution.
+Interactive profile and skill rating editor (proficiency and experience scores).
+Competition discovery with real-time eligibility checks, volunteer leadership checkbox, and application submission.
+Teammate wish management (selecting up to 3 peers to prefer or avoid).
+Team Workspace:
+Sprint progress indicator and planned member workload bar chart.
+Milestone tracking with overdue notices and completion toggles.
+3-column Kanban board (To do, In progress, Done) with role-based task movement and assignment.
+Persistence & Data Layer
+Client-side reactive in-memory and local storage layer initialized with the complete demo dataset (15 technical skills, coordinator Prof. Sharma, 30 students with pre-configured ratings, applications, and teammate preferences).
+Full state changes (creating competitions, applying, generating teams, finalizing, managing workspace tasks) persist across sessions.
+Known Limitations
+Data persistence is browser-local (localStorage); multi-device synchronization is not configured.
+flag
+Checkpoint
+with all the tech to be used to build this SkillSync — Smart & Fair Team Formation Platform SkillSync can be a full-stack web application that helps teachers or competition coordinators divide a class of N N students into balanced teams based on their technical skills, experience, and interests
+pasted
+read all my previous conversion on chatgpt and give proper workflow and tech use in this with proper framework read all this carefully
+Building out dashboard features and tightening variable declarations.
+Building out dashboard features and tightening variable declarations.
+Maine coordinator-dashboard.html update kar diya hai. Is version mein finalize hui teams ke neeche Fairness report vs random aur Download CSV buttons aa gaye hain. Do chhote sudhar bhi hain. Deadline ka date box ab purani date nahi chunne deta, aur $ ab const se bana hai. Poori file replace kar do:
+html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SkillSync: Coordinator dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<style>
+:root{--bg:#f5f7fb;--card:#fff;--ink:#14213d;--mute:#5d6b85;--line:#e0e6f0;--brand:#0d8f83;--soft:#e0f4f1;--warn:#c2410c;--warnbg:#ffedd5;--track:#e6ebf3}
+*{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 system-ui,sans-serif}
+.wrap{max-width:1040px;margin:0 auto;padding:16px}
+header{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px}
+.logo{font-weight:700;font-size:1.3rem}.logo span{color:var(--brand)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px}
+.grid{display:grid;gap:16px}.g2{grid-template-columns:repeat(auto-fit,minmax(280px,1fr))}.g3{grid-template-columns:repeat(auto-fit,minmax(250px,1fr))}
+h2{margin:24px 0 12px;font-size:1.25rem} h3{margin:0 0 4px;font-size:1.05rem}
+.muted{color:var(--mute);font-size:.92rem}
+.row{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+.btn{border:0;background:var(--brand);color:#fff;padding:8px 14px;border-radius:10px;font:600 .92rem system-ui;cursor:pointer;margin:4px 6px 0 0}
+.btn.ghost{background:none;color:var(--ink);border:1px solid var(--line)} .btn:disabled{opacity:.55;cursor:default}
+.badge{display:inline-block;padding:2px 10px;border-radius:99px;background:var(--soft);color:var(--brand);font-size:.82rem;font-weight:600}
+.badge.warn{background:var(--warnbg);color:var(--warn)}
+label{display:block;font-weight:600;margin:10px 0 4px;font-size:.93rem}
+input,select,textarea{width:100%;padding:9px;border:1px solid var(--line);border-radius:10px;font:inherit;background:#fff;color:var(--ink)}
+.skillrow{display:flex;align-items:center;gap:10px;margin:6px 0} .skillrow span{flex:1} .skillrow input{width:80px}
+details summary{cursor:pointer;font-weight:700;font-size:1.05rem}
+.chip{display:inline-block;background:var(--track);border-radius:8px;padding:2px 9px;margin:2px 3px 2px 0;font-size:.85rem}
+.chip.lead{background:var(--brand);color:#fff;font-weight:600}
+.stat{font-size:1.5rem;font-weight:700;color:var(--brand);line-height:1.1}
+.box{position:relative;height:240px}
+table{width:100%;border-collapse:collapse;font-size:.93rem} th,td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line)}
+td b{color:var(--brand)}
+#msg{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);background:var(--ink);color:#fff;padding:10px 18px;border-radius:10px;opacity:0;transition:opacity .2s;max-width:90vw}
+#msg.show{opacity:1}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+<div class="logo">Skill<span>Sync</span> <span class="muted" style="font-weight:400">Coordinator</span></div>
+<div><span id="who" class="muted"></span> <button class="btn ghost" onclick="logout()">Log out</button></div>
+</header>
+<div class="card">
+</div>
+<h2>Your competitions</h2>
+<div id="comps" class="grid g3"></div>
+<div id="panel" style="margin-top:8px"></div>
+</div>
+<div id="msg" role="status"></div>
+<script src="api.js"></script>
+<script>
+const me = requireRole("coordinator");
+const $ = (s) => document.querySelector(s);
+$("#who").textContent = me.name;
+const esc = (t) => String(t ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+function toast(t){ const m=$("#msg"); m.textContent=t; m.classList.add("show"); setTimeout(()=>m.classList.remove("show"),3500); }
+const label = (s) => s.replace(/_/g," ");
+
+let skills = [], chart = null, run = null, comps = [];
+
+const todayStr = new Date().toISOString().slice(0,10);
+const d = new Date(); d.setDate(d.getDate()+30);
+$("#cdead").value = d.toISOString().slice(0,10);
+$("#cdead").min = todayStr;
+
+async function init(){
+skills = await api("/skills");
+$("#skillw").innerHTML = skills.map(s =>
+`<div class="skillrow"><span>${esc(s.name)}</span><input type="number" min="0" max="10" step="1" value="0" data-id="${s.id}" aria-label="Weight for ${esc(s.name)}"></div>`).join("");
+await loadComps();
+}
+
+async function createComp(){
+const reqs = [...document.querySelectorAll("#skillw input")].filter(i => +i.value > 0)
+.map(i => ({skill_id:+i.dataset.id, weight:+i.value, min_level:0, mandatory:false}));
+if (!reqs.length) return toast("Give at least one skill a weight above 0.");
+try {
+const c = await api("/competitions", {method:"POST", body:{
+name:$("#cname").value, description:$("#cdesc").value, comp_type:$("#ctype").value,
+team_size:+$("#csize").value, num_teams:+$("#cteams").value, fairness_tolerance:+$("#ctol").value,
+formation_mode:"preference", deadline:$("#cdead").value || null, requirements:reqs}});
+toast(`Created "${c.name}" (id ${c.id}). Publish it when you are ready.`);
+loadComps();
+} catch (e) { toast(e.message); }
+}
+
+async function loadComps(){
+comps = await api("/competitions");
+$("#comps").innerHTML = comps.length ? comps.map(c => {
+const s = c.status; let btns = "";
+if (s === "draft") btns = `<button class="btn" onclick="act(${c.id},'publish')">Publish</button>`;
+if (s === "registration_open") btns = `<button class="btn" onclick="act(${c.id},'close-registration')">Close registration</button>`;
+if (["registration_closed","teams_proposed","under_review"].includes(s)) btns = `<button class="btn" onclick="generate(${c.id})">Generate teams</button>`;
+if (["finalized","ongoing","completed"].includes(s)) btns = `<button class="btn" onclick="viewTeams(${c.id})">View teams</button>`;
+return `<div class="card"><h3>#${c.id} ${esc(c.name)}</h3>
+<p class="muted">${esc(c.requirements.map(r=>r.skill).join(", "))}</p>
+<span class="badge ${s==="draft"?"warn":""}">${esc(label(s))}</span>
+<p class="muted" style="margin:6px 0 0">Join code ${esc(c.join_code)}</p>
+<div>${btns}<button class="btn ghost" onclick="applicants(${c.id})">Applicants</button></div></div>`;
+}).join("") : '<p class="muted">You have not created a competition yet.</p>';
+}
+
+async function act(id, name){
+try { await api(`/competitions/${id}/${name}`, {method:"POST"}); toast("Done."); loadComps(); }
+catch (e) { toast(e.message); }
+}
+
+async function applicants(id){
+try {
+const r = await api(`/competitions/${id}/applicants`);
+$("#panel").innerHTML = `<h2>Applicants for ${esc(r.competition)} (${r.count})</h2><div class="card">
+${r.count ? `<table><tr><th>Student</th><th>Score</th><th>Wants to lead</th></tr>
+${r.applicants.map(a=>`<tr><td>${esc(a.name)}</td><td>${a.score.toFixed(2)}</td><td>${a.wants_to_lead?"Yes":""}</td></tr>`).join("")}</table>`
+: '<p class="muted">No confirmed applicants yet.</p>'}</div>`;
+$("#panel").scrollIntoView({behavior:"smooth"});
+} catch (e) { toast(e.message); }
+}
+
+async function generate(id){
+try {
+toast("Generating teams, please wait.");
+const r = await api(`/competitions/${id}/team-generation`, {method:"POST"});
+run = {...r, compId:id, tol:(comps.find(c=>c.id===id)||{}).fairness_tolerance || 0.8};
+showOption(0); loadComps();
+} catch (e) { toast(e.message); }
+}
+
+function showOption(i){
+const o = run.options[i], m = o.metrics;
+const tabs = run.options.map((_,k)=>`<button class="btn ${k===i?"":"ghost"}" onclick="showOption(${k})">Option ${k+1}</button>`).join("");
+$("#panel").innerHTML = `
+<h2>Proposed teams (run ${run.run_id})</h2>
+${run.warnings.map(w=>`<p class="badge warn">${esc(w)}</p>`).join(" ")}
+<div class="tabs">${tabs}</div>
+<div class="grid g2" style="margin-top:12px">
+<div class="card">
+<div class="row"><h3>Fairness check</h3><span class="badge ${m.within_tolerance?"":"warn"}">${m.within_tolerance?"Within the limit":"Over the limit"}</span></div>
+<p class="muted">Highest team average minus lowest is <b>${m.spread.toFixed(2)}</b>. Your limit is ${run.tol}.</p>
+<div class="grid g2">
+<div><div class="stat">${m.prefer_met}/${m.prefer_total}</div><div class="muted">teammate wishes met</div></div>
+<div><div class="stat">${m.avoid_violations}</div><div class="muted">separation requests broken</div></div>
+</div>
+<button class="btn" style="margin-top:12px" onclick="finalize(${i})">Finalize option ${i+1}</button>
+<p class="muted">Students see their team only after you finalize.</p>
+</div>
+<div class="card"><h3>Team averages</h3><div class="box"><canvas id="bars"></canvas></div></div>
+</div>
+<div class="grid g3" style="margin-top:16px">${teamCards(o.teams)}</div>`;
+if (chart) chart.destroy();
+chart = new Chart($("#bars"), {type:"bar",
+data:{labels:o.teams.map(t=>"Team "+t.team_no), datasets:[{data:o.teams.map(t=>t.avg), backgroundColor:"#0d8f83", borderRadius:6}]},
+options:{maintainAspectRatio:false, plugins:{legend:{display:false}},
+scales:{y:{min:Math.max(0,Math.min(...o.teams.map(t=>t.avg))-1.5), max:10}}}});
+}
+
+const teamCards = (teams) => teams.map(t =>
+`<div class="card"><div class="row"><h3>Team ${t.team_no}</h3><b style="color:var(--brand)">${t.avg.toFixed(2)}</b></div>
+<p class="muted">${t.members.length} members</p>
+${t.members.map(m=>`<span class="chip ${m.is_leader?"lead":""}">${esc(m.name)}${m.is_leader?" (leader)":""}</span>`).join("")}</div>`).join("");
+
+async function finalize(i){
+if (!confirm("Finalize these teams? Students will see them and this cannot be undone.")) return;
+try {
+await api(`/competitions/${run.compId}/finalize-teams`, {method:"POST", body:{run_id:run.run_id, option_index:i}});
+toast("Teams finalized."); await loadComps(); viewTeams(run.compId);
+} catch (e) { toast(e.message); }
+}
+
+async function viewTeams(id){
+try {
+const t = await api(`/competitions/${id}/teams`);
+$("#panel").innerHTML = `
+<div class="row"><h2>Final teams</h2>
+<div><button class="btn" onclick="report(${id})">Fairness report vs random</button>
+<button class="btn ghost" onclick="downloadCsv(${id})">Download CSV</button></div></div>
+<div id="report"></div>
+<div class="grid g3">${teamCards(t.map(x=>({team_no:x.team_no, avg:x.avg_score, members:x.members})))}</div>`;
+$("#panel").scrollIntoView({behavior:"smooth"});
+} catch (e) { toast(e.message); }
+}
+
+async function report(id){
+try {
+const r = await api(`/competitions/${id}/fairness-report`), o = r.ours, x = r.random;
+$("#report").innerHTML = `<div class="card" style="margin-bottom:16px">
+<h3>SkillSync vs random assignment (${r.trials} random trials)</h3>
+<table>
+<tr><th>Measure</th><th>SkillSync</th><th>Random average</th></tr>
+<tr><td>Gap between highest and lowest team average</td><td><b>${o.spread.toFixed(2)}</b></td><td>${x.avg_spread}</td></tr>
+<tr><td>Within your ${r.tolerance} limit</td><td><b>${o.within_tolerance ? "Yes" : "No"}</b></td><td>${x.pct_within_tolerance}% of trials</td></tr>
+<tr><td>Teammate wishes met (out of ${o.prefer_total})</td><td><b>${o.prefer_met}</b></td><td>${x.avg_prefer_met}</td></tr>
+<tr><td>Separation requests broken</td><td><b>${o.avoid_violations}</b></td><td>${x.avg_avoid_violations}</td></tr>
+<tr><td>Skill imbalance across teams (lower is better)</td><td><b>${o.skill_gap}</b></td><td>${x.avg_skill_gap}</td></tr>
+</table></div>`;
+} catch (e) { toast(e.message); }
+}
+
+async function downloadCsv(id){
+try {
+const res = await fetch(API + `/competitions/${id}/export`, {headers:{Authorization:"Bearer " + localStorage.getItem("token")}});
+if (!res.ok) return toast("Could not export the teams.");
+const a = document.createElement("a");
+a.href = URL.createObjectURL(await res.blob());
+a.download = `teams_competition_${id}.csv`;
+a.click();
+URL.revokeObjectURL(a.href);
+} catch (e) { toast("Could not export the teams."); }
+}
+
+init().catch(e => toast(e.message));
+</script>
+</body>
+</html>
+Kya badla
+Naye buttons. Finalize hui competition par View teams dabane se Fairness report vs random aur Download CSV dikhte hain.
+Report table. SkillSync aur random assignment ka comparison: team averages ka gap, 0.8 limit mein hone ka matlab, teammate wishes poori hui ya nahi, separation requests toote ya nahi, aur skill imbalance.
+CSV download. Token ke saath request jaati hai aur file teams_competition_N.csv ke naam se download hoti hai.
+Chhote sudhar. Registration deadline ka date box aaj se pehle ki date nahi chunne deta. $ ab const se bana hai, aur error toast thodi der tak dikhta hai.
+Test
+Save karo, coordinator-dashboard.html ko Go Live se reload karo (Ctrl+F5). Coordinator se login karo.
+Jis competition ki teams finalize hui hain (jaise 3), uske card par View teams dabao.
+Fairness report vs random dabao. Table mein SkillSync ka gap random average se chhota hona chahiye.
+Download CSV dabao. Excel mein khol ke dekho: team number, naam, email, role, score.
+Ye dono tabhi chalenge jab teams.py mein /fairness-report aur /export jude hon (pichhle message mein poori file di thi). Agar button dabane par “Finalize teams first.” dikhe, to us competition ki teams finalize nahi hain. Koi aur error aaye to F12 → Console ka screenshot bhej dena.
+Report ka result aur CSV ka screenshot bhej dena. Phir bacha hua kaam student profile page aur demo script hai. Bata dena pehle kaun sa banana hai.
+compleated what do next but one thing it not look more atrractive
+Designing an override stylesheet with cards, buttons, and badges
+Design ke liye ek shared theme.css banate hain. Ye sab pages ko ek saath badal dega, aur har page ka code chhedna nahi padega.
+Nayi file: frontend/theme.css
+css
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+:root{
+--bg:#f3f6fc; --card:#ffffff; --ink:#0f1b3d; --mute:#64748b; --line:#e5eaf3;
+--brand:#0d9488; --brand2:#2563eb; --soft:#e6f7f5; --warn:#c2410c; --warnbg:#fff1e0; --track:#e8edf5;
+--shadow:0 1px 2px rgba(15,27,61,.05), 0 8px 24px rgba(15,27,61,.07);
+}
+body{
+font-family:'Inter',system-ui,sans-serif; color:var(--ink);
+background:
+radial-gradient(900px 400px at 85% -10%, rgba(37,99,235,.10), transparent 60%),
+radial-gradient(700px 360px at -5% 0%, rgba(13,148,136,.12), transparent 60%),
+var(--bg);
+min-height:100vh; -webkit-font-smoothing:antialiased;
+}
+/* top bar */
+header{
+background:rgba(255,255,255,.85); backdrop-filter:blur(8px);
+border:1px solid var(--line); border-radius:16px; padding:12px 18px;
+box-shadow:var(--shadow); margin-bottom:22px;
+}
+.logo{
+font-weight:800; letter-spacing:-.02em; font-size:1.4rem;
+background:linear-gradient(90deg,var(--brand),var(--brand2));
+-webkit-background-clip:text; background-clip:text; color:transparent;
+}
+.logo span{color:inherit}
+.logo .muted{-webkit-text-fill-color:var(--mute); font-size:.8rem; font-weight:500}
+/* type */
+h1{font-weight:800; letter-spacing:-.02em; font-size:1.9rem}
+h2{font-weight:700; letter-spacing:-.01em; font-size:1.3rem; margin:30px 0 14px}
+h3{font-weight:600}
+.muted{color:var(--mute)}
+a{color:var(--brand); font-weight:600; text-decoration:none}
+a:hover{text-decoration:underline}
+/* cards */
+.card{
+border:1px solid var(--line); border-radius:18px; padding:20px;
+box-shadow:var(--shadow); transition:transform .15s ease, box-shadow .15s ease;
+}
+.grid > .card:hover{transform:translateY(-2px); box-shadow:0 2px 4px rgba(15,27,61,.06), 0 14px 32px rgba(15,27,61,.10)}
+/* buttons */
+.btn, button.btn{
+background:linear-gradient(135deg,var(--brand),#0b7f9a); color:#fff; border:0;
+border-radius:12px; padding:9px 16px; font:600 .9rem 'Inter',sans-serif;
+box-shadow:0 4px 12px rgba(13,148,136,.28); transition:transform .12s ease, box-shadow .12s ease, filter .12s;
+}
+.btn:hover{transform:translateY(-1px); filter:brightness(1.06); box-shadow:0 8px 18px rgba(13,148,136,.32)}
+.btn:active{transform:translateY(0)}
+.btn.ghost{background:#fff; color:var(--ink); border:1px solid var(--line); box-shadow:none}
+.btn.ghost:hover{background:var(--soft); border-color:#b8e6e1; filter:none}
+.btn:disabled{opacity:.55; transform:none; box-shadow:none}
+/* badges and chips */
+.badge{background:var(--soft); color:#0b7a70; border:1px solid #c9ece8; padding:3px 11px}
+.badge.warn{background:var(--warnbg); color:var(--warn); border-color:#fbd9b4}
+.chip{background:#eef2f9; border:1px solid var(--line); padding:3px 11px; border-radius:99px; font-weight:500}
+.chip.lead{background:linear-gradient(135deg,var(--brand),#0b7f9a); color:#fff; border-color:transparent}
+/* numbers and bars */
+.big, .stat{
+font-weight:800; letter-spacing:-.03em;
+background:linear-gradient(90deg,var(--brand),var(--brand2));
+-webkit-background-clip:text; background-clip:text; color:transparent;
+}
+.bar{height:9px; border-radius:99px; background:var(--track)}
+.bar i{background:linear-gradient(90deg,var(--brand),var(--brand2)); border-radius:99px}
+/* forms */
+input,select,textarea{
+border:1px solid #d6deec; border-radius:12px; padding:10px 12px; font:inherit; background:#fff;
+transition:border-color .12s, box-shadow .12s;
+}
+input:focus,select:focus,textarea:focus{outline:none; border-color:var(--brand); box-shadow:0 0 0 4px rgba(13,148,136,.16)}
+label{color:#334155; font-weight:600}
+input[type=checkbox]{width:auto; accent-color:var(--brand)}
+/* tables */
+table{border-collapse:separate; border-spacing:0}
+th{font-size:.78rem; text-transform:uppercase; letter-spacing:.05em; color:var(--mute); font-weight:600}
+th,td{padding:10px 12px; border-bottom:1px solid var(--line)}
+tr:nth-child(even) td{background:#f8fafd}
+tr:hover td{background:var(--soft)}
+/* details, tasks, errors, toast */
+details summary{color:var(--brand); list-style:none}
+details summary::before{content:"＋ "; font-weight:800}
+details[open] summary::before{content:"－ "}
+.task{border-radius:14px; border:1px solid var(--line); box-shadow:0 1px 2px rgba(15,27,61,.04); transition:box-shadow .15s}
+.task:hover{box-shadow:var(--shadow)}
+.error{border:1px solid #fbd9b4}
+#msg{background:#0f1b3d; border-radius:12px; box-shadow:0 10px 30px rgba(15,27,61,.3); font-weight:500}
+/* login page */
+form#f{
+border:1px solid var(--line); border-radius:22px; box-shadow:0 20px 50px rgba(15,27,61,.12);
+padding:34px; background:rgba(255,255,255,.95);
+}
+form#f h1{background:linear-gradient(90deg,var(--brand),var(--brand2)); -webkit-background-clip:text; background-clip:text; color:transparent; font-size:2rem}
+form#f button{padding:12px; border-radius:12px; font-size:1rem; background:linear-gradient(135deg,var(--brand),#0b7f9a); box-shadow:0 8px 20px rgba(13,148,136,.3)}
+@media (max-width:640px){
+header{padding:10px 12px}
+h1{font-size:1.5rem}
+.card{padding:16px}
+}
+2. Har page mein ek line jodo
+Har HTML file mein </style> ke theek neeche, </head> se pehle, ye line add karo:
+html
+<link rel="stylesheet" href="theme.css">
+Ye 4 files mein karo:
+login.html
+student-dashboard.html
+coordinator-dashboard.html
+team-dashboard.html
+Ye line <style> block ke baad honi chahiye. Tab theme.css purane styles ko override karta hai.
+Login page ka label theek karo (agar abhi bhi galat dikhe)
+login.html mein email ke upar student1@skillsync.test aur password ke upar Demo@1234 jaisa text dikha tha. Ye do lines aisi karo:
+html
+<label for="email">Email</label><input id="email" type="email" required value="student1@skillsync.test">
+<label for="pw">Password</label><input id="pw" type="password" required value="Demo@1234">
+4. Dekho kya badla
+Save karke har page ko Ctrl+F5 se reload karo. Ye dikhna chahiye:
+gradient wala logo aur naam, frosted top bar
+cards par soft shadow, jo hover karne par halke uthte hain
+teal gradient wale buttons, aur ghost buttons ka alag look
+score ke bade numbers aur progress bars par teal se blue gradient
+table mein alternate rows, aur hover par highlight
+input par focus karne par teal glow
+login page par bada gradient title aur gehri shadow
+Agla kaam
+Design ho gaya to bacha hua kaam ye hai, is order mein:
+Student profile page: student sliders se apni skills aur proficiency khud set kare. Abhi ye sirf /docs se hota hai, aur demo mein “student apna profile bharta hai” wala step dikhana zaroori hai. Iska poora page main banata hoon.
+Demo script aur presentation points: 5 minute ka flow, kaun si screen kab dikhani hai, aur jo sawal evaluators pooch sakte hain.
+Naya look kaisa laga, screenshot bhej dena. Rang ya spacing badalni ho to bata dena. Aur batao ki agla step student profile page se shuru karun ya demo script se.
+Firstly read all this chat and screenshot carefully.
+This my previous chat on clue make more attractive and next add next featur in those give on workflow using those tech
+Screenshot 2026-10-23 200757.png
+Screenshot 2026-10-23 200757.png
+Screenshot 2026-10-23 200814.png
+Screenshot 2026-10-23 200814.png
+Screenshot 2026-10-23 201034.png
+Screenshot 2026-10-23 201034.png
+Gemini 3.8 Flash
+Ran for 17m 50s
+
+summarize_auto
+Action history
+chevron_right
+Here are key actions taken for the app:
+
+edit
+Edited 8 files
+src/types.ts
+check_circle
+src/services/storage.ts
+check_circle
+src/components/WorkflowGuide.tsx
+check_circle
+src/views/StudentDashboard.tsx
+check_circle
+src/views/TeamWorkspaceView.tsx
+check_circle
+src/components/Header.tsx
+check_circle
+src/App.tsx
+check_circle
+src/views/CoordinatorDashboard.tsx
+check_circle
+build
+Built
+SkillSync: System Architecture, Tech Stack & End-to-End Workflow
+1. Technology Stack & Framework Architecture
+code
+Code
+┌────────────────────────────────────────────────────────────────────────┐
+│                          PRESENTATION LAYER                            │
+│  React 18 + TypeScript + Tailwind CSS (Glassmorphism & Micro-animations)│
+│  Data Visualization: Chart.js 4.4 (Radar Skill Balance & Workload Bars)│
+│  Icons: Lucide React · Interactive Modals · Live Toasts               │
+└───────────────────────────────────┬────────────────────────────────────┘
+                                    │
+┌───────────────────────────────────▼────────────────────────────────────┐
+│                       BUSINESS & ALGORITHMIC CORE                      │
+│  • Competency Engine: Multi-parameter weighted skill score             │
+│  • Leadership Scorer: Suitability ranking based on availability & exp  │
+│  • Balancing Optimizer: Multi-restart greedy + iterative swap search    │
+│  • Monte Carlo Simulator: 300-trial benchmark vs random assignment    │
+└───────────────────────────────────┬────────────────────────────────────┘
+                                    │
+┌───────────────────────────────────▼────────────────────────────────────┐
+│                    REACTIVE DATA & PERSISTENCE LAYER                   │
+│  • Centralized Store with Observer Pattern (subscribe/notify)          │
+│  • Seed Generator: 15 technical skills, coordinator & 30 student profiles│
+│  • Browser Persistence: LocalStorage backup & session preservation    │
+│  • Export Engine: CSV generation for competition audit & grading       │
+└────────────────────────────────────────────────────────────────────────┘
+Component	Technology	Rationale
+Frontend Framework	React 18 (SPA) + TypeScript	Strongly-typed interfaces for students, teams, requirements, tasks, and metrics.
+Build Tool & Dev Server	Vite 6	Instant HMR, sub-second production builds, standard Port 3000 hosting.
+Styling & Design System	Tailwind CSS + Custom CSS Variables	Custom teal-to-blue gradients (#0d9488 to #2563eb), glassmorphic header cards, status badges, and responsive tables.
+Visual Analytics	Chart.js	Native canvas radar chart for multidimensional student skill strengths and bar charts for team score averages and planned workloads.
+Optimization Engine	TypeScript Balancer	Client-side port of the greedy + iterative swap search optimizer, capable of running thousands of iterations and 300-trial Monte Carlo simulations in milliseconds without server roundtrips.
+2. Complete 7-Phase / 13-Step End-to-End Workflow
+code
+Code
+[Phase 1: Student & System]
+ 1. Student Registers ───► 2. Builds Portfolio ───► 3. Calculates General Competency
+                                                               │
+[Phase 2: Coordinator]                                         │
+ 4. Configures & Publishes Competition (Skill Weights & Gap) ◄─┘
+      │
+      ▼
+[Phase 3: Student]
+ 5. Discovers & Applies ───► 6. Submits Teammate Wishes (Prefer / Avoid / Lead)
+                                    │
+[Phase 4: Algorithmic Balancer]     │
+ 7. Event-Specific Fit ◄────────────┘
+      │
+      ├─────► 8. Ranks & Confirms Leaders
+      │
+      └─────► 9. Generates 3 Candidate Team Allocations (Greedy + Swap Search)
+                    │
+[Phase 5: Coordinator Review]
+10. Audits Fairness Metrics vs Tolerance ───► 11. Finalizes Chosen Option
+                                                        │
+[Phase 6: Team Workspace]                               ▼
+12. Private Workspace Opens (Kanban, Hours Workload, Milestones)
+      │
+      ▼
+[Phase 7: Closure & Deliverables]
+13. Submits Project Repository ───► Coordinator Grades & Exports CSV Report
+Phase 1 · Student & System (Profile & Competency Baseline)
+Student Registration & Profile: Student creates an account, specifies weekly availability hours (5–40 hrs/week), preferred technical role (Frontend, Backend, ML/AI, Hardware, or Coordinator), and background interests.
+Portfolio Building: Student showcases GitHub repositories, live demo URLs, tech stack tags, certifications (e.g., AWS, TensorFlow), and honors.
+General Competency Calculation: The transparent scoring engine computes verified individual scores:
+
+Phase 2 · Coordinator (Event Configuration)
+Configure & Publish Competition: The coordinator defines team sizes (
+), total teams (
+), registration deadlines, allowed score gap (
+), and skill weights (
+ from 0 to 10).
+Phase 3 · Student (Discovery & Teammate Preferences)
+Discover & Apply: Students review active events, inspect their calculated fit and eligibility (mandatory skill requirements), and submit voluntary applications.
+Submit Teammate Preferences: Students declare whether they wish to volunteer as a team leader and optionally designate up to 3 peers to prefer working with or avoid (separation requests).
+Phase 4 · Algorithmic Engine (Optimization & Team Generation)
+Competition-Specific Fitness: The engine recalculates event-specific fit:
+Leadership Selection: Volunteer leaders are ranked by leadership suitability:
+
+Qualified leaders are seeded one-per-team into distinct candidate rosters.
+Candidate Team Generation: The balancer executes 8 restarts of 2,500 swap search iterations against an objective function penalizing score spread past tolerance, broken preferences, and skill coverage gaps:
+Phase 5 · Coordinator & Student (Review & Finalization)
+Review Proposed Teams: The coordinator inspects Option 1, Option 2, and Option 3 tabs with spread checks, teammate wishes met counts, separation request audits, and interactive bar charts.
+Validate and Finalize: On approval, the team rosters are locked into the database, generating private team workspaces for all confirmed students.
+Phase 6 · Team (Private Workspace & Sprint Management)
+Collaborative Workspace: Confirmed members collaborate through:
+Sprint Completion Tracker: Real-time progress bar.
+Member Workload Bar Chart: Planned estimated hours per member.
+Milestone Manager: Key target deadlines with overdue tracking.
+3-Column Kanban Board: To do, In progress, and Done cards with assignee permissions.
+Phase 7 · Team & Coordinator (Deliverables, Audit & Closure)
+Project Submission & Closure:
+Teams submit their project title, GitHub repository link, architecture notes, and demo link.
+The coordinator reviews submitted code, assigns a judge score (0–100), provides qualitative feedback, benchmarks fairness against a 300-trial Monte Carlo random assignment, downloads the audit CSV, and marks the event Completed.
+3. Features Implemented in the Live App
+Portfolio & Skill DNA Tab:
+Students can manage their GitHub profile, bio, and add projects with tags and demo links.
+Interactive skill sliders for Proficiency (1–5) and Experience (0–10) that dynamically update individual scores.
+13-Step Workflow Guide:
+A dedicated "13-Step Workflow" button in the header opens a full phase-by-phase modal detailing the entire platform flow.
+Phase 7 Project Submission & Coordinator Grading:
+Teams can submit deliverables in their workspace.
+Coordinators can grade projects, provide feedback, and close the event.
+Interactive Role Switching:
+Switch between Prof. Sharma (Coordinator) and any student (e.g. Aarav, Diya) via the header account switcher to test both perspectives.
+flag
+Checkpoint
+team size change make it variable team size because for national and internation team size may 100 to 10000 for school it witll 10 100,200
+type may be collection 2 or more or may 1 type the int this also give the otion to choose 1 or more type
+image.png
+image.png
+image.png
+image.png
+Gemini 3.8 Flash
+Canceled
+
+summarize_auto
+Action history
+chevron_right
+Here are key actions taken for the app:
+
+edit
+Edited 3 files
+src/types.ts
+check_circle
+src/services/storage.ts
+check_circle
+src/views/CoordinatorDashboard.tsx
+check_circle
+error
+Quota limits exceeded
+flag
+Checkpoint
+There was an unexpected error. Finish what you were doing.
